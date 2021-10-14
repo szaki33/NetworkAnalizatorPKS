@@ -56,13 +56,13 @@ def load_from_file(file, dictionary):
 
 
 def load_types(ether_dict, llc_dict, tcp_dict, udp_dict, icmp_dict, ip_dict, snap_dict):
-    load_from_file("ether_types.txt", ether_dict)
-    load_from_file("llc_saps.txt", llc_dict)
-    load_from_file("tcp_ports.txt", tcp_dict)
-    load_from_file("udp_ports.txt", udp_dict)
-    load_from_file("icmp_types.txt", icmp_dict)
-    load_from_file("ip_protocols.txt", ip_dict)
-    load_from_file("snap_types.txt", snap_dict)
+    load_from_file("dict/ether_types.txt", ether_dict)
+    load_from_file("dict/llc_saps.txt", llc_dict)
+    load_from_file("dict/tcp_ports.txt", tcp_dict)
+    load_from_file("dict/udp_ports.txt", udp_dict)
+    load_from_file("dict/icmp_types.txt", icmp_dict)
+    load_from_file("dict/ip_protocols.txt", ip_dict)
+    load_from_file("dict/snap_types.txt", snap_dict)
 
 
 def getData():
