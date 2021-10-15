@@ -242,8 +242,8 @@ def print_packet_info(file):
     for pkt in packet_list:
         file.write(55 * "-" + "\n")
         file.write("Rámec č. " + pkt.id.__str__() + "\n")
-        file.write("Dĺžka rámca poskytnutá pcap API – " + pkt.cap_len.__str__() + "\n")
-        file.write("Dĺžka rámca prenášaného po médiu - " + pkt.all_len.__str__() + "\n")
+        file.write("Dĺžka rámca poskytnutá pcap API – " + pkt.cap_len.__str__() + "B\n")
+        file.write("Dĺžka rámca prenášaného po médiu - " + pkt.all_len.__str__() + "B\n")
         file.write("Typ rámca: " + pkt.frame_type + "\n")
         print_macs(pkt.src_mac, pkt.dst_mac, file)
         file.write("Typ protokolu: " + pkt.protocol + "\n")
@@ -268,7 +268,7 @@ def get_output():
 
 
 def print_ip_dict(file):
-    file.write("IP adresy vysielajúcich uzlov:\n")
+    file.write("\n \nIP adresy vysielajúcich uzlov:\n")
     for ip in ip_dict:
         file.write(get_ip_address(ip) + "\n")
     file.write("\nAdresa uzla s najväčším počtom odoslaných paketov:\n")
