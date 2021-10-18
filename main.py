@@ -33,7 +33,24 @@ class Packet:
         self.mtr_ip = ""
 
 
+class ArpCommunication:
+    frames = []
+    dst_ip = ""
+    src_ip = ""
+    src_mac = []
+    close = False
+
+    def __init__(self, frame, ip_src, ip_dst, mac_src, close=False):
+        self.frames = []
+        self.frames.append(frame)
+        self.src_ip = ip_src
+        self.dst_ip = ip_dst
+        self.src_mac = mac_src
+        self.close = close
+
+
 packet_list = []
+arp_communications = []
 ether_types = {}
 llc_types = {}
 tcp_ports = {}
@@ -47,10 +64,7 @@ ip_dict = {}
 
 def load_from_file(file, dictionary):
     o_file = open(file, "r")
-    # for line in o_file:
-    #    (key, val) = line.split()
-    #    dictionary[int(key, 16)] = val
-    for line in open(file, "r"):
+    for line in o_file:
         processed = line.split(' ', 1)
         dictionary[int(processed[0], 16)] = processed[1].replace("\n", "")
 
@@ -238,7 +252,7 @@ def print_macs(src_mac, dst_mac, file):
     file.write("\n")
 
 
-def print_packet_info(file):
+def print_packet_list(file):
     for pkt in packet_list:
         file.write(55 * "-" + "\n")
         file.write("Rámec č. " + pkt.id.__str__() + "\n")
@@ -267,17 +281,101 @@ def get_output():
     return open(filename, "w", encoding="utf-8")
 
 
+def add_to_arp_com(communications, frame, src_ip, dst_ip, src_mac):
+    # kontrola ci existuje uz komunikacia
+    for a in communications:
+        # kontrola ci je uz uzavreta komunikacia
+        if a.close:
+            continue
+        # patri ramec k danej komunikacii?
+        if (a.src_ip == src_ip and a.dst_ip == dst_ip and a.src_mac == src_mac) or (
+                a.src_ip == dst_ip and a.dst_ip == src_ip and a.src_mac == src_mac):
+            a.frames.append(frame)
+            # je ramec odpoved?
+            if frame.inner_protocol == "ARP Reply":
+                a.close = True
+                return
+    # neexistuje este komunikacia
+    if frame.inner_protocol == "ARP Reply":
+        communications.append(ArpCommunication(frame, src_ip, dst_ip, src_mac, True))
+    else:
+        communications.append(ArpCommunication(frame, src_ip, dst_ip, src_mac))
+
+
+def arp_communication(file):
+    for pkt in packet_list:
+        if pkt.protocol == "ARP (Address Resolution Protocol)":
+            if pkt.inner_protocol == "ARP Request":
+                add_to_arp_com(arp_communications, pkt, pkt.src_ip, pkt.dst_ip, pkt.src_mac)
+            else:
+                add_to_arp_com(arp_communications, pkt, pkt.src_ip, pkt.dst_ip, pkt.dst_mac)
+    print_arp_communications(file)
+
+
+def print_mac(src_mac, file):
+    for i in range(6):
+        file.write('%02x ' % src_mac[i])
+
+
+def print_arp_header(frame, file):
+    if frame.inner_protocol == "ARP Reply":
+        file.write("ARP-Reply, IP adresa: " + frame.src_ip + ",\t MAC adresa: ")
+        print_mac(frame.src_mac, file)
+        file.write("\nZdrojová IP: " + frame.src_ip + ",\tCieľová IP: " + frame.dst_ip + "\n")
+    else:
+        file.write("ARP-Request, IP adresa: " + frame.dst_ip + ",\t MAC adresa: ???")
+        file.write("\nZdrojová IP: " + frame.src_ip + ",\tCieľová IP: " + frame.dst_ip + "\n")
+
+
+def print_packet_info(file, pkt):
+    file.write("Rámec č. " + pkt.id.__str__() + "\n")
+    file.write("Dĺžka rámca poskytnutá pcap API – " + pkt.cap_len.__str__() + "B\n")
+    file.write("Dĺžka rámca prenášaného po médiu - " + pkt.all_len.__str__() + "B\n")
+    file.write("Typ protokolu: " + pkt.protocol + "\n")
+    file.write("Typ rámca: " + pkt.frame_type + "\n")
+    print_macs(pkt.src_mac, pkt.dst_mac, file)
+    print_packet(pkt.byte_field, file)
+    file.write("\n\n")
+
+
+def print_arp_communications(file):
+    count = 1
+    if len(arp_communications) > 0:
+        tmp = False
+        for a in arp_communications:
+            if a.close and (len(a.frames) > 1):
+                file.write(55 * "-" + "\n")
+                file.write("Komunikácia č. " + count.__str__() + "\n")
+                count += 1
+                print_arp_header(a.frames[0], file)
+                for frame in a.frames:
+                    if frame.inner_protocol == "ARP Reply":
+                        print_arp_header(frame, file)
+                    print_packet_info(file, frame)
+            else:
+                tmp = True
+        if tmp:
+            file.write(55 * "-" + "\nZbytok ARP:\n")
+            for a in arp_communications:
+                if len(a.frames) == 1 and a.close is False:
+                    for frame in a.frames:
+                        print_arp_header(frame, file)
+                        print_packet_info(file, frame)
+
+
 def print_ip_dict(file):
     file.write("\n \nIP adresy vysielajúcich uzlov:\n")
     for ip in ip_dict:
         file.write(get_ip_address(ip) + "\n")
     file.write("\nAdresa uzla s najväčším počtom odoslaných paketov:\n")
-    file.write(get_ip_address(max(ip_dict, key=ip_dict.get)) + "\t" + ip_dict.get(max(ip_dict, key=ip_dict.get)).__str__() + " paketov\n")
+    file.write(get_ip_address(max(ip_dict, key=ip_dict.get)) + "\t" + ip_dict.get(
+        max(ip_dict, key=ip_dict.get)).__str__() + " paketov\n")
 
 
 load_types(ether_types, llc_types, tcp_ports, udp_ports, icmp_types, ip_protocols, snap_types)
 packet_data = getData()
 output_file = get_output()
 process_packets(packet_data)
-print_packet_info(output_file)
+arp_communication(output_file)
+print_packet_list(output_file)
 print_ip_dict(output_file)
