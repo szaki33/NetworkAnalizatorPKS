@@ -361,6 +361,7 @@ def print_arp_communications(file):
                     for frame in a.frames:
                         print_arp_header(frame, file)
                         print_packet_info(file, frame)
+            file.write(55 * "-")
 
 
 def print_ip_dict(file):
