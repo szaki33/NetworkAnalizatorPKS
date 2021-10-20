@@ -1,0 +1,6 @@
+0x1 Read request
+0x2 Write request
+0x3 Data Packet
+0x4 Acknowledgment
+0x5 Error message
+0x6 Option acknowledgment

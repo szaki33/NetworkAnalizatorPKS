@@ -49,8 +49,40 @@ class ArpCommunication:
         self.close = close
 
 
+class TFTPCommunication:
+    frames = []
+    client_ip = ""
+    server_ip = ""
+    src_port = 0
+    dst_port = 0
+    opcode = ""
+    wait_for_ack = False
+    close = False
+    success = False
+    blocks = []
+
+    def __init__(self, frame, srv_ip, client_ip, src_port, opcode):
+        self.frames = []
+        self.frames.append(frame)
+        self.server_ip = srv_ip
+        self.client_ip = client_ip
+        self.src_mac = src_port
+        self.type = opcode
+        if opcode == "Read request":
+            self.wait_for_ack = False
+        if opcode == "Write request":
+            self.wait_for_ack = True
+
+
+class Block:
+    def __init__(self, id):
+        self.id = id
+        self.acknowledged = False
+
+
 packet_list = []
 arp_communications = []
+tftp_communications = []
 ether_types = {}
 llc_types = {}
 tcp_ports = {}
@@ -60,7 +92,8 @@ ip_protocols = {}
 arps = {}
 snap_types = {}
 ip_dict = {}
-
+tftp_dict = {}
+tftp_packets = []
 
 def load_from_file(file, dictionary):
     o_file = open(file, "r")
@@ -77,6 +110,7 @@ def load_types(ether_dict, llc_dict, tcp_dict, udp_dict, icmp_dict, ip_dict, sna
     load_from_file("dict/icmp_types.txt", icmp_dict)
     load_from_file("dict/ip_protocols.txt", ip_dict)
     load_from_file("dict/snap_types.txt", snap_dict)
+    load_from_file("dict/tftp_opcodes.txt", tftp_dict)
 
 
 def getData():
@@ -133,6 +167,7 @@ def port_set_and_check(frame, pkt, port_dict):
         pkt.dst_port = get_data_from_bytes(frame, 36, 37, True)
         if pkt.dst_port in port_dict:
             pkt.inner_protocol_type = port_dict.get(pkt.dst_port)
+
 
 
 def insert_ip(frame, dict):
@@ -373,10 +408,97 @@ def print_ip_dict(file):
         max(ip_dict, key=ip_dict.get)).__str__() + " paketov\n")
 
 
+def print_tftp_header(a, file):
+    file.write("TFTP " + a.opcode + "pripojenie\n")
+    file.write("IP adresa Servera: " + a.server_ip + "\tIP adresa Klienta: " + a.client_ip)
+    file.write(
+        "\nKomunikačný port Servera: " + a.dst_port.__str__() + "\tKomunikačný port Klienta: " + a.src_port.__str__())
+    if a.close:
+        if a.success:
+            file.write("\nKomunikácia bola úspešne ukončena")
+        else:
+            file.write("\nKomunikácia nebola úspešne ukončena")
+    else:
+        file.write("\nKomunikácia nebola ukončena")
+    # file.write("Rámce komunikácie")
+
+
+def print_tftp_communications(file):
+    file.write(55 * "-" + "\n")
+    file.write("TFTP\n")
+    file.write(55 * "-" + "\n\n")
+    count = 1
+    if len(tftp_communications) > 0:
+        for a in tftp_communications:
+            file.write(55 * "-" + "\n")
+            file.write("Komunikácia č." + count.__str__() + "\n")
+            count += 1
+            print_tftp_header(a, file)
+            for frame in a.frames:
+                print_packet_info(file, frame)
+
+
+def get_tftp_opcode(frame):
+    tftp_type = get_data_from_bytes(frame.byte_field, 42, 43, True)
+    if tftp_type in tftp_dict:
+        return tftp_dict.get(tftp_type)
+    else:
+        "Wrong opcode"
+
+
+def add_to_tftp_com(communications, frame):
+    src_ip = frame.src_ip
+    dst_ip = frame.dst_ip
+    src_port = frame.src_port
+    dst_port = frame.dst_port
+    opcode = get_tftp_opcode(frame)
+    # ked target port je 69 jedna sa o novu komunikaciu
+    if dst_port == 69:
+        communications.append(TFTPCommunication(frame, dst_ip, src_ip, src_port, opcode))
+        return
+    block_id = get_data_from_bytes(frame.byte_field, 44, 45, True)
+    # kontrola ci uz existuje
+    for a in communications:
+        # kontrola ci je uz uzavreta komunikacia
+        if a.close:
+            continue
+        # patri ramec k danej komunikacii?
+        if (a.src_ip == src_ip and a.dst_ip == dst_ip and a.src_port == src_port) or (
+                a.src_ip == dst_ip and a.dst_ip == src_ip and a.src_port == dst_port):
+            # je ramec druhy v poradi?
+            if len(a.frames == 1):
+                if a.opcode == "Write request" and opcode == "Acknowledgment":
+                    a.frames.append(frame)
+                    a.dst_port = frame.src_port
+                    a.wait_for_ack = False
+                elif a.opcode == "Read request" and opcode == "Data Packet":
+                    a.frames.append(frame)
+                    a.dst_port = frame.src_port
+                    a.wait_for_ack = True
+                else:
+                    return
+            if opcode == "Data Packet":
+                a.blocks.append(Block(block_id))
+            if opcode == "Acknowledgment":
+                a.blocks[block_id].acknowledgement = True
+            if frame.cap_len < 558:
+                a.close = True
+            if a.wait_for_ack is False:
+                a.success = True
+
+
+def tftp_communication(file):
+    for pkt in packet_list:
+        if pkt.inner_protocol_type == "TFTP":
+            add_to_tftp_com(tftp_communications, pkt)
+    print_tftp_communications(file)
+
+
 load_types(ether_types, llc_types, tcp_ports, udp_ports, icmp_types, ip_protocols, snap_types)
 packet_data = getData()
 output_file = get_output()
 process_packets(packet_data)
 arp_communication(output_file)
+tftp_communication(output_file)
 print_packet_list(output_file)
 print_ip_dict(output_file)
