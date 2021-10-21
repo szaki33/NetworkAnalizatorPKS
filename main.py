@@ -312,6 +312,7 @@ def print_packet_list(file):
                     file.write("Cieľový port: " + pkt.dst_port.__str__() + "\n")
 
         print_packet(pkt.byte_field, file)
+    print_ip_dict(output_file)
 
 
 def get_output():
@@ -504,11 +505,38 @@ def tftp_communication(file):
     print_tftp_communications(file)
 
 
+def choose_what_to_do(output_file):
+    print("Vyberte jednu z možnosťí na výpis alebo zadajte exit a aplikácia skončí")
+    print("all - Výpis všetkých rámcov")
+    print("arp - Výpis ARP komunikácie")
+    print("tftp - Výpis TFTP komunikácie")
+    print("icmp - Výpis ICMP komunikácie")
+    print("exit - Konec")
+    option = input("Možnosť: ")
+    while option != "all" or option != "arp" or option != "tftp" or option != "icmp":
+        if option == "exit":
+            exit()
+        print("Vybraná možnosť neexistuje. Vyberte jednu z možnosťí na výpis alebo zadajte exit a aplikácia skončí.")
+        print("Vyberte jednu z možnosťí na výpis alebo zadajte exit a aplikácia skončí.")
+        print("all - Výpis všetkých rámcov")
+        print("arp - Výpis ARP komunikácie")
+        print("tftp - Výpis TFTP komunikácie")
+        print("icmp - Výpis ICMP komunikácie")
+        print("exit - Konec")
+        option = input("Zadaj meno súboru ktorý chceš analyzovať: ")
+    if option == "arp":
+        arp_communication(output_file)
+    elif option == "tftp":
+        tftp_communication(output_file)
+    elif option == "icmp":
+        print("ICMP")
+    elif option == "all":
+        print_packet_list(output_file)
+
+
 load_types(ether_types, llc_types, tcp_ports, udp_ports, icmp_types, ip_protocols, snap_types)
 packet_data = getData()
 output_file = get_output()
 process_packets(packet_data)
-# arp_communication(output_file)
-tftp_communication(output_file)
-# print_packet_list(output_file)
-# print_ip_dict(output_file)
+choose_what_to_do(output_file)
+
