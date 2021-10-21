@@ -51,7 +51,6 @@ class TFTPCommunication:
     close = False
     success = False
 
-
     def __init__(self, frame, srv_ip, client_ip, src_port, opcode):
         self.frames = []
         self.frames.append(frame)
@@ -197,7 +196,7 @@ def get_inner_protocol(frame, ether_value, ieee_value, pkt):
             ip_head_num = get_data_from_bytes(frame, 23, 23, True)
             if ip_head_num in ip_protocols:
                 pkt.inner_protocol = ip_protocols.get(ip_head_num)
-                # Ked ICMP
+                # Ked je ICMP
                 if ip_head_num == 1:
                     icmp_type = get_data_from_bytes(frame, 0, 0, True)
                     # zisti typ ICMP
@@ -430,7 +429,8 @@ def print_tftp_packet_info(file, pkt):
 def print_tftp_header(a, file):
     file.write("TFTP " + a.opcode + " pripojenie\n")
     file.write("IP adresa Servera: " + a.server_ip + "\tIP adresa Klienta: " + a.client_ip)
-    file.write("\nKomunikačný port Servera: " + a.dst_port.__str__() + "\tKomunikačný port Klienta: " + a.src_port.__str__())
+    file.write(
+        "\nKomunikačný port Servera: " + a.dst_port.__str__() + "\tKomunikačný port Klienta: " + a.src_port.__str__())
     if a.close:
         if a.success:
             file.write("\nKomunikácia bola úspešne ukončena\n")
@@ -492,8 +492,7 @@ def add_to_tftp_com(communications, frame):
                 if a.opcode == "Write request" and opcode == "Acknowledgment":
                     a.dst_port = frame.src_port
                     if block_id in a.blocks:
-
-                        print()
+                        pass
                     else:
                         a.blocks[block_id] = 0
                 elif a.opcode == "Read request" and opcode == "Data Packet":
@@ -503,19 +502,19 @@ def add_to_tftp_com(communications, frame):
             if opcode == "Data Packet":
                 a.frames.append(frame)
                 if block_id in a.blocks:
-                    print()
+                    pass
                 else:
                     a.blocks[block_id] = 0
                 a.wait_for_ack = True
                 if frame.cap_len < 558:
                     a.close = True
-            if opcode == "Acknowledgment":
+            elif opcode == "Acknowledgment":
                 if block_id in a.blocks:
                     a.blocks[block_id] = 1
                     a.wait_for_ack = False
                 a.frames.append(frame)
-            if block_id == 0:
-                print()
+            else:
+                a.frames.append(frame)
             tmp = a.blocks[list(a.blocks)[-1]]
             if tmp == 1 and a.close:
                 a.success = True
@@ -526,6 +525,30 @@ def tftp_communication(file):
         if pkt.inner_protocol_type == "TFTP":
             add_to_tftp_com(tftp_communications, pkt)
     print_tftp_communications(file)
+
+
+def print_icmp_packet_info(file, pkt):
+    file.write("Rámec č. " + pkt.id.__str__() + "\n")
+    file.write("Dĺžka rámca poskytnutá pcap API – " + pkt.cap_len.__str__() + "B\n")
+    file.write("Dĺžka rámca prenášaného po médiu - " + pkt.all_len.__str__() + "B\n")
+    file.write("Typ rámca: " + pkt.frame_type + "\n")
+    print_macs(pkt.src_mac, pkt.dst_mac, file)
+    file.write("Typ protokolu: " + pkt.protocol + "\n")
+    file.write("Typ vnoreneho protokolu: " + pkt.inner_protocol + "\n")
+    file.write("Zdrojová IP adresa: " + pkt.src_ip + "\n")
+    file.write("Cielova IP adresa: " + pkt.dst_ip + "\n")
+    file.write(pkt.inner_protocol_type + "\n")
+    print_packet(pkt.byte_field, file)
+    file.write("\n\n")
+
+
+def icmp_communications(output_file):
+    output_file.write(55 * "-" + "\n")
+    output_file.write("ICMP\n")
+    output_file.write(55 * "-" + "\n\n")
+    for pkt in packet_list:
+        if pkt.inner_protocol == "ICMP":
+            print_icmp_packet_info(output_file, pkt)
 
 
 def choose_what_to_do(output_file):
@@ -552,7 +575,7 @@ def choose_what_to_do(output_file):
     elif option == "tftp":
         tftp_communication(output_file)
     elif option == "icmp":
-        print("ICMP")
+        icmp_communications(output_file)
     elif option == "all":
         print_packet_list(output_file)
 
