@@ -18,19 +18,10 @@ class Packet:
         self.inner_protocol = ""
         self.inner_protocol_type = ""
         self.byte_field = bytearray()
-        self.dsap = ""
-        self.ssap = ""
-        self.ethernetII = False
-        self.ip = False
-        self.tcp = False
-        self.udp = False
-        self.arp = False
         self.src_port = 0
         self.dst_port = 0
         self.src_ip = ""
         self.dst_ip = ""
-        self.tr_ips = []
-        self.mtr_ip = ""
 
 
 class ArpCommunication:
@@ -59,7 +50,7 @@ class TFTPCommunication:
     wait_for_ack = False
     close = False
     success = False
-    blocks = []
+
 
     def __init__(self, frame, srv_ip, client_ip, src_port, opcode):
         self.frames = []
@@ -68,6 +59,7 @@ class TFTPCommunication:
         self.client_ip = client_ip
         self.src_port = src_port
         self.opcode = opcode
+        self.blocks = {}
         if opcode == "Read request":
             self.wait_for_ack = False
         if opcode == "Write request":
@@ -94,13 +86,17 @@ snap_types = {}
 ip_dict = {}
 tftp_dict = {}
 tftp_packets = []
+option_dict = {}
 
 
 def load_from_file(file, dictionary):
     o_file = open(file, "r")
     for line in o_file:
         processed = line.split(' ', 1)
-        dictionary[int(processed[0], 16)] = processed[1].replace("\n", "")
+        if file == "dict/options.txt":
+            dictionary[processed[0]] = processed[1].replace("\n", "")
+        else:
+            dictionary[int(processed[0], 16)] = processed[1].replace("\n", "")
 
 
 def load_types(ether_dict, llc_dict, tcp_dict, udp_dict, icmp_dict, ip_dict, snap_dict):
@@ -112,6 +108,7 @@ def load_types(ether_dict, llc_dict, tcp_dict, udp_dict, icmp_dict, ip_dict, sna
     load_from_file("dict/ip_protocols.txt", ip_dict)
     load_from_file("dict/snap_types.txt", snap_dict)
     load_from_file("dict/tftp_opcodes.txt", tftp_dict)
+    load_from_file("dict/options.txt", option_dict)
 
 
 def getData():
@@ -413,18 +410,34 @@ def print_ip_dict(file):
         max(ip_dict, key=ip_dict.get)).__str__() + " paketov\n")
 
 
+def print_tftp_packet_info(file, pkt):
+    file.write("Rámec č. " + pkt.id.__str__() + "\n")
+    file.write("Dĺžka rámca poskytnutá pcap API – " + pkt.cap_len.__str__() + "B\n")
+    file.write("Dĺžka rámca prenášaného po médiu - " + pkt.all_len.__str__() + "B\n")
+    file.write("Typ rámca: " + pkt.frame_type + "\n")
+    print_macs(pkt.src_mac, pkt.dst_mac, file)
+    file.write("Typ protokolu: " + pkt.protocol + "\n")
+    file.write("Typ vnoreneho protokolu: " + pkt.inner_protocol + "\n")
+    file.write("Zdrojová IP adresa: " + pkt.src_ip + "\n")
+    file.write("Cielova IP adresa: " + pkt.dst_ip + "\n")
+    file.write(pkt.inner_protocol_type + "\n")
+    file.write("Zdrojový port: " + pkt.src_port.__str__() + "\n")
+    file.write("Cieľový port: " + pkt.dst_port.__str__() + "\n")
+    print_packet(pkt.byte_field, file)
+    file.write("\n\n")
+
+
 def print_tftp_header(a, file):
     file.write("TFTP " + a.opcode + " pripojenie\n")
     file.write("IP adresa Servera: " + a.server_ip + "\tIP adresa Klienta: " + a.client_ip)
-    file.write(
-        "\nKomunikačný port Servera: " + a.dst_port.__str__() + "\tKomunikačný port Klienta: " + a.src_port.__str__())
+    file.write("\nKomunikačný port Servera: " + a.dst_port.__str__() + "\tKomunikačný port Klienta: " + a.src_port.__str__())
     if a.close:
         if a.success:
             file.write("\nKomunikácia bola úspešne ukončena\n")
         else:
             file.write("\nKomunikácia nebola úspešne ukončena\n")
     else:
-        file.write("\nKomunikácia nebola ukončena\n")
+        file.write("\nKomunikácia nebola ukončena\n\n")
     # file.write("Rámce komunikácie")
 
 
@@ -440,7 +453,7 @@ def print_tftp_communications(file):
             count += 1
             print_tftp_header(a, file)
             for frame in a.frames:
-                print_packet_info(file, frame)
+                print_tftp_packet_info(file, frame)
 
             file.write(55 * "-" + "\n")
 
@@ -467,8 +480,7 @@ def add_to_tftp_com(communications, frame):
     # kontrola ci uz existuje
     for a in communications:
         if a.opcode == "Read request" and len(a.frames) == 1:
-            a.blocks.append(Block(0))
-            a.blocks[0].acknowledged = True
+            a.blocks[0] = 1
         # kontrola ci je uz uzavreta komunikacia
         if a.close and a.wait_for_ack is False:
             continue
@@ -479,22 +491,33 @@ def add_to_tftp_com(communications, frame):
             if len(a.frames) == 1:
                 if a.opcode == "Write request" and opcode == "Acknowledgment":
                     a.dst_port = frame.src_port
-                    a.blocks.append(Block(block_id))
+                    if block_id in a.blocks:
+
+                        print()
+                    else:
+                        a.blocks[block_id] = 0
                 elif a.opcode == "Read request" and opcode == "Data Packet":
                     a.dst_port = frame.src_port
                 else:
                     return
             if opcode == "Data Packet":
                 a.frames.append(frame)
-                a.blocks.append(Block(block_id))
+                if block_id in a.blocks:
+                    print()
+                else:
+                    a.blocks[block_id] = 0
                 a.wait_for_ack = True
                 if frame.cap_len < 558:
                     a.close = True
             if opcode == "Acknowledgment":
-                a.blocks[block_id].acknowledged = True
-                a.wait_for_ack = False
+                if block_id in a.blocks:
+                    a.blocks[block_id] = 1
+                    a.wait_for_ack = False
                 a.frames.append(frame)
-            if a.wait_for_ack is False:
+            if block_id == 0:
+                print()
+            tmp = a.blocks[list(a.blocks)[-1]]
+            if tmp == 1 and a.close:
                 a.success = True
 
 
@@ -513,7 +536,7 @@ def choose_what_to_do(output_file):
     print("icmp - Výpis ICMP komunikácie")
     print("exit - Konec")
     option = input("Možnosť: ")
-    while option != "all" or option != "arp" or option != "tftp" or option != "icmp":
+    while option not in option_dict:
         if option == "exit":
             exit()
         print("Vybraná možnosť neexistuje. Vyberte jednu z možnosťí na výpis alebo zadajte exit a aplikácia skončí.")
@@ -539,4 +562,3 @@ packet_data = getData()
 output_file = get_output()
 process_packets(packet_data)
 choose_what_to_do(output_file)
-
