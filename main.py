@@ -95,6 +95,7 @@ ip_dict = {}
 tftp_dict = {}
 tftp_packets = []
 
+
 def load_from_file(file, dictionary):
     o_file = open(file, "r")
     for line in o_file:
@@ -116,6 +117,8 @@ def load_types(ether_dict, llc_dict, tcp_dict, udp_dict, icmp_dict, ip_dict, sna
 def getData():
     filename = input("Zadaj meno súboru ktorý chceš analyzovať: ")
     while not os.path.exists('./pcap/' + filename):
+        if filename == "exit":
+            exit()
         print("Súbor " + filename + " neexistuje.")
         filename = input("Zadaj meno súboru ktorý chceš analyzovať: ")
     return rdpcap('./pcap/' + filename)
@@ -169,7 +172,6 @@ def port_set_and_check(frame, pkt, port_dict):
             pkt.inner_protocol_type = port_dict.get(pkt.dst_port)
     if pkt.inner_protocol_type == "TFTP":
         port_dict[pkt.src_port] = "TFTP"
-
 
 
 def insert_ip(frame, dict):
@@ -495,7 +497,6 @@ def add_to_tftp_com(communications, frame):
                 a.success = True
 
 
-
 def tftp_communication(file):
     for pkt in packet_list:
         if pkt.inner_protocol_type == "TFTP":
@@ -507,7 +508,7 @@ load_types(ether_types, llc_types, tcp_ports, udp_ports, icmp_types, ip_protocol
 packet_data = getData()
 output_file = get_output()
 process_packets(packet_data)
-#arp_communication(output_file)
+# arp_communication(output_file)
 tftp_communication(output_file)
-#print_packet_list(output_file)
-#print_ip_dict(output_file)
+# print_packet_list(output_file)
+# print_ip_dict(output_file)
