@@ -551,12 +551,37 @@ def icmp_communications(output_file):
             print_icmp_packet_info(output_file, pkt)
 
 
+def print_stp_packet_info(pkt, file):
+    file.write("Rámec č. " + pkt.id.__str__() + "\n")
+    file.write("Dĺžka rámca poskytnutá pcap API – " + pkt.cap_len.__str__() + "B\n")
+    file.write("Dĺžka rámca prenášaného po médiu - " + pkt.all_len.__str__() + "B\n")
+    file.write("Typ rámca: " + pkt.frame_type + "\n")
+    print_macs(pkt.src_mac, pkt.dst_mac, file)
+    file.write("Typ protokolu: STP\n")
+    file.write(pkt.inner_protocol_type + "\n")
+    print_packet(pkt.byte_field, file)
+    file.write("\n\n")
+
+
+def print_stp_packets(file):
+    count = 0
+    file.write(55 * "-" + "\n")
+    file.write("STP/BPDU\n")
+    file.write(55 * "-" + "\n\n")
+    for pkt in packet_list:
+        if pkt.protocol == "BPDU (Bridge PDU / 802.1 Spanning Tree)":
+            count += 1
+            print_stp_packet_info(pkt, file)
+    file.write("Celkovy počet STP rámcov v súbore: " + count.__str__())
+
+
 def choose_what_to_do(output_file):
     print("Vyberte jednu z možnosťí na výpis alebo zadajte exit a aplikácia skončí")
     print("all - Výpis všetkých rámcov")
     print("arp - Výpis ARP komunikácie")
     print("tftp - Výpis TFTP komunikácie")
     print("icmp - Výpis ICMP komunikácie")
+    print("stp - Výpis STP rámcov a ich počet(doimplementacia)")
     print("exit - Konec")
     option = input("Možnosť: ")
     while option not in option_dict:
@@ -568,6 +593,7 @@ def choose_what_to_do(output_file):
         print("arp - Výpis ARP komunikácie")
         print("tftp - Výpis TFTP komunikácie")
         print("icmp - Výpis ICMP komunikácie")
+        print("stp - Výpis STP rámcov a ich počet(doimplementacia)")
         print("exit - Konec")
         option = input("Zadaj meno súboru ktorý chceš analyzovať: ")
     if option == "arp":
@@ -578,6 +604,8 @@ def choose_what_to_do(output_file):
         icmp_communications(output_file)
     elif option == "all":
         print_packet_list(output_file)
+    elif option == "stp":
+        print_stp_packets(output_file)
 
 
 load_types(ether_types, llc_types, tcp_ports, udp_ports, icmp_types, ip_protocols, snap_types)

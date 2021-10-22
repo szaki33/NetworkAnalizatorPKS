@@ -2,3 +2,4 @@ all 0
 arp 1
 tftp 2
 icmp 3
+stp 4
